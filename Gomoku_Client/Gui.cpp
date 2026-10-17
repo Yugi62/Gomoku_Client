@@ -237,6 +237,12 @@ void Gui::Draw_Register()
             static char password[384] = "";
             ImGui::InputText("비밀번호", password, IM_ARRAYSIZE(password), ImGuiInputTextFlags_Password);
 
+            static char passwordConfirm[384] = "";
+            ImGui::InputText("비밀번호 확인", passwordConfirm, IM_ARRAYSIZE(passwordConfirm), ImGuiInputTextFlags_Password);
+            ImGui::TextUnformatted(std::string(password) == passwordConfirm
+                ? "비밀번호 일치"
+                : "비밀번호 불일치");
+
             static char nickname[384] = "";
             ImGui::InputText("닉네임", nickname, IM_ARRAYSIZE(nickname));
 
