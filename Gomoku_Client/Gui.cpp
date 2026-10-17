@@ -217,7 +217,11 @@ void Gui::Draw_Register()
     {
         if (isRegister)
         {
-            ImGui::Begin("회원가입");
+            const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+            ImGui::SetNextWindowPos(ImVec2(displaySize.x * 0.05f, displaySize.y * 0.05f), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(displaySize.x * 0.9f, displaySize.y * 0.9f), ImGuiCond_Always);
+            ImGui::Begin("회원가입", nullptr, defaultFlags);
+
 
             static char id[384] = "";
             ImGui::InputText("아이디", id, IM_ARRAYSIZE(id));
