@@ -1,4 +1,7 @@
-﻿#pragma once
+﻿#if defined(_MSC_VER)
+// Keep ImGui labels and JSON strings in UTF-8 regardless of the system code page.
+#pragma execution_character_set("utf-8")
+#endif
 
 #include "Gui.h"
 #include <sstream>
@@ -7,6 +10,39 @@
 #include <nlohmann/json.hpp>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+namespace
+{
+bool LoadKoreanFont(ImGuiIO& io)
+{
+    wchar_t windowsDirectory[MAX_PATH] = {};
+    const UINT length = ::GetWindowsDirectoryW(windowsDirectory, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return false;
+
+    const std::wstring fontPath = std::wstring(windowsDirectory) + L"\\Fonts\\malgun.ttf";
+    const DWORD attributes = ::GetFileAttributesW(fontPath.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+        return false;
+
+    const int utf8Size = ::WideCharToMultiByte(CP_UTF8, 0, fontPath.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (utf8Size == 0)
+        return false;
+    std::string utf8Path(utf8Size, '\0');
+    if (::WideCharToMultiByte(CP_UTF8, 0, fontPath.c_str(), -1, &utf8Path[0], utf8Size, nullptr, nullptr) == 0)
+        return false;
+
+    // Include every Hangul syllable and composing jamo, not just common syllables.
+    // The atlas retains this pointer until its first build.
+    static const ImWchar ranges[] = {
+        0x0020, 0x00FF, 0x1100, 0x11FF, 0x3130, 0x318F,
+        0xA960, 0xA97F, 0xAC00, 0xD7A3, 0xD7B0, 0xD7FF,
+        0xFFFD, 0xFFFD, 0
+    };
+    io.FontDefault = io.Fonts->AddFontFromFileTTF(utf8Path.c_str(), 18.0f, nullptr, ranges);
+    return io.FontDefault != nullptr;
+}
+}
 
 std::string fillZero(std::string str, int width)
 {
@@ -127,16 +163,16 @@ void Gui::Draw_Login()
         ImGui::SetNextWindowPos(ImVec2(width * 0.05f, height * 0.05f), ImGuiCond_Once);
         ImGui::SetNextWindowSize(ImVec2(width * 0.9f, height * 0.9f), ImGuiCond_Once);
 
-        ImGui::Begin("Login", nullptr, defaultFlags);
+        ImGui::Begin("로그인", nullptr, defaultFlags);
 
         if (!isLoginLoading)
         {
-            static char id[128] = "";
-            ImGui::InputText("ID", id, IM_ARRAYSIZE(id));
-            static char password[128] = "";
-            ImGui::InputText("PASSWORD", password, IM_ARRAYSIZE(password), ImGuiInputTextFlags_Password);
+            static char id[384] = "";
+            ImGui::InputText("아이디", id, IM_ARRAYSIZE(id));
+            static char password[384] = "";
+            ImGui::InputText("비밀번호", password, IM_ARRAYSIZE(password), ImGuiInputTextFlags_Password);
 
-            if (ImGui::Button("Login"))
+            if (ImGui::Button("로그인"))
             {
                 isLoginLoading = true;
 
@@ -151,7 +187,7 @@ void Gui::Draw_Login()
                 _client.Reserve_Write(str);
             }
 
-            if (ImGui::Button("Register"))
+            if (ImGui::Button("회원가입"))
                 isRegister = true;
         }
 
@@ -160,14 +196,14 @@ void Gui::Draw_Login()
 
     if (isSend)
     {
-        ImGui::OpenPopup("Login Error");
+        ImGui::OpenPopup("로그인 실패");
         isSend = false;
     }
-    if (ImGui::BeginPopupModal("Login Error", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("로그인 실패", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::Text("Login Error");
+        ImGui::Text("로그인 실패");
 
-        if (ImGui::Button("OK"))
+        if (ImGui::Button("확인"))
             ImGui::CloseCurrentPopup();
 
         ImGui::EndPopup();
@@ -181,12 +217,12 @@ void Gui::Draw_Register()
     {
         if (isRegister)
         {
-            ImGui::Begin("Register");
+            ImGui::Begin("회원가입");
 
-            static char id[128] = "";
-            ImGui::InputText("ID", id, IM_ARRAYSIZE(id));
+            static char id[384] = "";
+            ImGui::InputText("아이디", id, IM_ARRAYSIZE(id));
 
-            if (ImGui::Button("Check ID Availability"))
+            if (ImGui::Button("아이디 중복 확인"))
             {
                 nlohmann::json j;
 
@@ -196,15 +232,15 @@ void Gui::Draw_Register()
                 str = fillZero(std::to_string(str.size()), 4) + str;
                 _client.Reserve_Write(str);
             }
-            ImGui::Text(isUsernameExistMsg.c_str());
+            ImGui::TextUnformatted(isUsernameExistMsg.c_str());
 
-            static char password[128] = "";
-            ImGui::InputText("Password", password, IM_ARRAYSIZE(password), ImGuiInputTextFlags_Password);
+            static char password[384] = "";
+            ImGui::InputText("비밀번호", password, IM_ARRAYSIZE(password), ImGuiInputTextFlags_Password);
 
-            static char nickname[128] = "";
-            ImGui::InputText("Nickname", nickname, IM_ARRAYSIZE(nickname));
+            static char nickname[384] = "";
+            ImGui::InputText("닉네임", nickname, IM_ARRAYSIZE(nickname));
 
-            if (ImGui::Button("Check Nickname Availability"))
+            if (ImGui::Button("닉네임 중복 확인"))
             {
                 nlohmann::json j;
 
@@ -214,10 +250,10 @@ void Gui::Draw_Register()
                 str = fillZero(std::to_string(str.size()), 4) + str;
                 _client.Reserve_Write(str);
             }
-            ImGui::Text(isNicknameExistMsg.c_str());
+            ImGui::TextUnformatted(isNicknameExistMsg.c_str());
 
 
-            if (ImGui::Button("Register"))
+            if (ImGui::Button("회원가입"))
             {
                 if (isUsernameAvaliable && isNicknameAvaliable)
                 {
@@ -235,15 +271,15 @@ void Gui::Draw_Register()
                 }
                 else
                 {
-                    ImGui::OpenPopup("Availability Error");
+                    ImGui::OpenPopup("중복 확인 필요");
                 }
             }
 
-            if (ImGui::BeginPopupModal("Availability Error", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+            if (ImGui::BeginPopupModal("중복 확인 필요", NULL, ImGuiWindowFlags_AlwaysAutoResize))
             {
-                ImGui::Text("Check Availability");
+                ImGui::Text("아이디와 닉네임 중복을 확인해 주세요.");
 
-                if (ImGui::Button("OK"))
+                if (ImGui::Button("확인"))
                     ImGui::CloseCurrentPopup();
 
                 ImGui::EndPopup();
@@ -255,7 +291,7 @@ void Gui::Draw_Register()
             if (closeButtonY > ImGui::GetCursorPosY())
                 ImGui::SetCursorPosY(closeButtonY);
             ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - closeButtonSize.x);
-            if (ImGui::Button("Close", closeButtonSize))
+            if (ImGui::Button("닫기", closeButtonSize))
                 isRegister = false;
 
             ImGui::End();
@@ -277,22 +313,22 @@ void Gui::Draw_Lobby()
         ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
         ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
 
-        ImGui::Begin("Lobby", nullptr, defaultFlags);
+        ImGui::Begin("로비", nullptr, defaultFlags);
 
         //방 생성 팝업
-        if (ImGui::Button("Create Room"))
+        if (ImGui::Button("방 만들기"))
         {
-            ImGui::OpenPopup("CreateRoom_Popup");
+            ImGui::OpenPopup("방 만들기");
         }
-        if (ImGui::BeginPopupModal("CreateRoom_Popup", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal("방 만들기", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            static char roomName[64] = "";
-            ImGui::InputText("RoomName", roomName, IM_ARRAYSIZE(roomName));
+            static char roomName[192] = "";
+            ImGui::InputText("방 이름", roomName, IM_ARRAYSIZE(roomName));
 
-            static char password[64] = "";
-            ImGui::InputText("Password", password, IM_ARRAYSIZE(password));
+            static char password[192] = "";
+            ImGui::InputText("비밀번호", password, IM_ARRAYSIZE(password));
 
-            if (ImGui::Button("Ok"))
+            if (ImGui::Button("확인"))
             {
                 nlohmann::json j;
                 j["type"] = "Create_Room";
@@ -309,7 +345,7 @@ void Gui::Draw_Lobby()
 
             ImGui::SameLine();
 
-            if (ImGui::Button("Cancel"))
+            if (ImGui::Button("취소"))
                 ImGui::CloseCurrentPopup();
 
             ImGui::EndPopup();
@@ -318,7 +354,7 @@ void Gui::Draw_Lobby()
         ImGui::SameLine();
 
         //뒤로가기
-        if (ImGui::Button("Back"))
+        if (ImGui::Button("돌아가기"))
         {
 
         }
@@ -326,7 +362,7 @@ void Gui::Draw_Lobby()
         ImGui::SameLine();
 
         static int selected = -1;
-        if (ImGui::Button("Refresh"))
+        if (ImGui::Button("새로고침"))
         {
             selected = -1;
             roomVec.clear();
@@ -340,7 +376,7 @@ void Gui::Draw_Lobby()
 
         ImGui::SameLine();
 
-        if (ImGui::Button("Ranking"))
+        if (ImGui::Button("순위"))
         {
             nlohmann::json j;
             j["type"] = "Send_Ranking";
@@ -365,12 +401,12 @@ void Gui::Draw_Lobby()
         }
         ImGui::EndChild();
 
-        static char pass[128] = "";
-        ImGui::InputText("Password", pass, IM_ARRAYSIZE(pass));
+        static char pass[384] = "";
+        ImGui::InputText("비밀번호", pass, IM_ARRAYSIZE(pass));
 
         ImGui::SameLine();
 
-        if (ImGui::Button("Join"))
+        if (ImGui::Button("입장"))
         {
             //유효한 인덱스인지 확인
             if (selected >= 0 && selected < roomVec.size())
@@ -405,7 +441,7 @@ void Gui::Draw_Ranking()
         ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
         ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
 
-        ImGui::Begin("Ranking", nullptr, defaultFlags);
+        ImGui::Begin("순위", nullptr, defaultFlags);
 
         struct RankInfo
         {
@@ -429,12 +465,12 @@ void Gui::Draw_Ranking()
             ImGuiTableFlags_RowBg |
             ImGuiTableFlags_SizingStretchProp))
         {
-            ImGui::TableSetupColumn("Rank");
-            ImGui::TableSetupColumn("Name");
-            ImGui::TableSetupColumn("Win");
-            ImGui::TableSetupColumn("Lose");
-            ImGui::TableSetupColumn("Draw");
-            ImGui::TableSetupColumn("Rating");
+            ImGui::TableSetupColumn("순위");
+            ImGui::TableSetupColumn("이름");
+            ImGui::TableSetupColumn("승");
+            ImGui::TableSetupColumn("패");
+            ImGui::TableSetupColumn("무");
+            ImGui::TableSetupColumn("평점");
 
             //컬럼명 보여주기
             ImGui::TableHeadersRow();
@@ -489,7 +525,7 @@ void Gui::Draw_Ranking()
 
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + windowWidth - buttonWidth);
 
-        if (ImGui::Button("Exit", ImVec2(buttonWidth, 30)))
+        if (ImGui::Button("닫기", ImVec2(buttonWidth, 30)))
         {
             isRanking = false;
         }
@@ -506,7 +542,7 @@ void Gui::Draw_Gomoku()
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Once);
     ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
 
-    ImGui::Begin("Gomoku Board", nullptr , defaultFlags);
+    ImGui::Begin("오목판", nullptr , defaultFlags);
 
 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.55f, 0.40f, 0.25f, 1.0f));
@@ -609,21 +645,21 @@ void Gui::Draw_Gomoku()
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
     ImGui::BeginChild("Top", ImVec2(0, 120), true);
 
-    std::string p1 = "Player 1 : ";
+    std::string p1 = "플레이어 1 : ";
 
     if (!nicknames.empty())
         p1 += nicknames[0];
 
-    std::string p2 = "Player 2 : ";
+    std::string p2 = "플레이어 2 : ";
 
     if (nicknames.size() >= 2)
         p2 += nicknames[1];
 
-    ImGui::Text(p1.c_str());
-    ImGui::Text(p2.c_str());
+    ImGui::TextUnformatted(p1.c_str());
+    ImGui::TextUnformatted(p2.c_str());
 
 
-    if (ImGui::Button("Ready"))
+    if (ImGui::Button("준비"))
     {
         nlohmann::json j;
         j["type"] = "Room_Ready";
@@ -638,7 +674,7 @@ void Gui::Draw_Gomoku()
 
 
         std::string turnStr;
-        turnStr = gomoku.ShowTurn() ? "My Turn" : "Opponent's Turn";
+        turnStr = gomoku.ShowTurn() ? "내 차례" : "상대 차례";
 
         ImU32 stoneColor;
 
@@ -689,10 +725,10 @@ void Gui::Draw_Gomoku()
 
     ImGui::EndChild();
 
-    static char chat[128] = "";
-    ImGui::InputText("Chat", chat, IM_ARRAYSIZE(chat));
+    static char chat[384] = "";
+    ImGui::InputText("채팅", chat, IM_ARRAYSIZE(chat));
 
-    if (ImGui::Button("Enter"))
+    if (ImGui::Button("전송"))
     {
         std::string temp = nickname + " : " + chat;
         chatMsg.push_back(temp);
@@ -705,7 +741,7 @@ void Gui::Draw_Gomoku()
         _client.Reserve_Write(str);
     }
 
-    if (ImGui::Button("Back"))
+    if (ImGui::Button("돌아가기"))
     {
         chatMsg.clear();
         nicknames.clear();
@@ -750,7 +786,7 @@ void Gui::Run()
 {
     wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    hwnd = ::CreateWindowW(wc.lpszClassName, L"Gomoku Client", WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX, 100, 100, 800, 600, nullptr, nullptr, wc.hInstance, this);
+    hwnd = ::CreateWindowW(wc.lpszClassName, L"오목 클라이언트", WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX, 100, 100, 800, 600, nullptr, nullptr, wc.hInstance, this);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -771,16 +807,24 @@ void Gui::Run()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-
-     
-
-
+    if (!LoadKoreanFont(io))
+    {
+        ::MessageBoxW(hwnd, L"맑은 고딕 폰트(Fonts\\malgun.ttf)를 불러올 수 없습니다.", L"폰트 오류", MB_OK | MB_ICONERROR);
+        ImGui::DestroyContext();
+        CleanupDeviceD3D();
+        ::DestroyWindow(hwnd);
+        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+        return;
+    }
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
+    // The Win32 backend handles WM_CHAR and positions the Korean IME candidate
+    // window for InputText. Keep the Unicode window and DefWindowProcW path;
+    // do not also inject WM_IME_COMPOSITION text (it would duplicate input).
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
@@ -872,12 +916,12 @@ void Gui::Check_Username(nlohmann::json& j)
 {
     if (j["result"] == "True")
     {
-        isUsernameExistMsg = "Username already exists";
+        isUsernameExistMsg = "이미 사용 중인 아이디입니다.";
         isUsernameAvaliable = false;
     }
     else if (j["result"] == "False")
     {
-        isUsernameExistMsg = "Username is available";
+        isUsernameExistMsg = "사용 가능한 아이디입니다.";
         isUsernameAvaliable = true;
     }
 }
@@ -886,12 +930,12 @@ void Gui::Check_UserNickname(nlohmann::json& j)
 {
     if (j["result"] == "True")
     {
-        isNicknameExistMsg = "Nickname already exists";
+        isNicknameExistMsg = "이미 사용 중인 닉네임입니다.";
         isNicknameAvaliable = false;
     }
     else if (j["result"] == "False")
     {
-        isNicknameExistMsg = "Nickname is available";
+        isNicknameExistMsg = "사용 가능한 닉네임입니다.";
         isNicknameAvaliable = true;
     }
 
@@ -978,7 +1022,7 @@ void Gui::Refresh_PlayerInfo(nlohmann::json& j)
 
 void Gui::Start_Game(nlohmann::json& j)
 {
-    chatMsg.push_back("Server : Game Started");
+    chatMsg.push_back("서버 : 게임이 시작되었습니다.");
 
     gomoku.StartGame();
 
